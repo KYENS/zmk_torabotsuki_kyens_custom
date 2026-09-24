@@ -13,7 +13,7 @@ manifest:
       import: app/west.yml
     - name: zmk-pointing-acceleration
       remote: oleksandrmaslov
-      revision: main
+      revision: fixed
     - name: zmk-component-bmp-boost
       remote: sekigon-gonnoc
       import: west.yml
