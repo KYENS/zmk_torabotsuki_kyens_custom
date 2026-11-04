@@ -1,0 +1,4 @@
+name: input-trackpad-cirque
+append:
+  EXTRA_DTC_OVERLAY_FILE: input-trackpad-cirque.overlay
+  EXTRA_CONF_FILE: input-trackpad-cirque.conf

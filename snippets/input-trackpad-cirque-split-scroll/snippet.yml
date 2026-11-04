@@ -1,0 +1,3 @@
+name: input-trackpad-cirque-split-scroll
+append:
+  EXTRA_DTC_OVERLAY_FILE: input-trackpad-cirque-split-scroll.overlay
