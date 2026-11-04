@@ -372,8 +372,18 @@ static int pinnacle_read_abs(const struct device *dev) {
 static void pinnacle_report_data_abs(const struct device *dev) {
     int ret = pinnacle_read_abs(dev);
     if (ret == 0) {
-        pinnacle_send_abs(dev);
+        pinnacle_send_abs(dev); /* clears status and re-arms the interrupt */
+        return;
     }
+    /*
+     * FIX: the read failed (I2C glitch) or SW_DR wasn't set. The interrupt was
+     * masked in pinnacle_gpio_cb, so if we return here without clearing the
+     * status and re-arming it, DR stays masked and the trackpad stops working
+     * until the next reboot. Always clear and re-arm.
+     */
+    LOG_WRN("abs read failed (%d), re-arming", ret);
+    pinnacle_clear_status(dev);
+    set_int(dev, true);
 }
 
 static void pinnacle_report_data_abs_rel(const struct device *dev) {
@@ -449,6 +459,26 @@ static void pinnacle_work_cb(struct k_work *work) {
     } else {
         pinnacle_report_data_rel(dev);
     }
+}
+
+/*
+ * Watchdog: if DR is held active but no work is queued (interrupt masked and
+ * the edge/level lost), kick the work handler, which reads, clears the status
+ * and re-arms the interrupt. Recovers from any path that left DR masked.
+ */
+#define PINNACLE_WATCHDOG_MS 500
+
+static void pinnacle_watchdog_cb(struct k_work *work) {
+    struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+    struct pinnacle_data *data = CONTAINER_OF(dwork, struct pinnacle_data, watchdog);
+    const struct device *dev = data->dev;
+    const struct pinnacle_config *config = dev->config;
+
+    if (!data->suspended && gpio_pin_get_dt(&config->dr) > 0 && !k_work_is_pending(&data->work)) {
+        LOG_WRN("DR stuck active, recovering");
+        k_work_submit(&data->work);
+    }
+    k_work_schedule(&data->watchdog, K_MSEC(PINNACLE_WATCHDOG_MS));
 }
 
 static void pinnacle_gpio_cb(const struct device *port, struct gpio_callback *cb, uint32_t pins) {
@@ -742,10 +772,12 @@ static int pinnacle_init(const struct device *dev) {
     }
 
     k_work_init(&data->work, pinnacle_work_cb);
+    k_work_init_delayable(&data->watchdog, pinnacle_watchdog_cb);
 
     pinnacle_write(dev, PINNACLE_FEED_CFG1, feed_cfg1);
 
     set_int(dev, true);
+    k_work_schedule(&data->watchdog, K_MSEC(PINNACLE_WATCHDOG_MS));
 
     return 0;
 }
@@ -755,10 +787,12 @@ static int pinnacle_init(const struct device *dev) {
 static int pinnacle_pm_action(const struct device *dev, enum pm_device_action action) {
     switch (action) {
     case PM_DEVICE_ACTION_SUSPEND:
+        ((struct pinnacle_data *)dev->data)->suspended = true;
         pinnacle_set_shutdown(dev, true);
         return 0;
     case PM_DEVICE_ACTION_RESUME:
         pinnacle_set_shutdown(dev, false);
+        ((struct pinnacle_data *)dev->data)->suspended = false;
         return 0;
     default:
         return -ENOTSUP;

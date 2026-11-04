@@ -83,6 +83,8 @@ struct pinnacle_data {
     const struct device *dev;
     struct gpio_callback gpio_cb;
     struct k_work work;
+    struct k_work_delayable watchdog; /* re-arms DR if it ever gets stuck masked */
+    bool suspended;
 };
 
 enum pinnacle_sensitivity {

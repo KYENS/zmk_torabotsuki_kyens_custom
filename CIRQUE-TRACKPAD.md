@@ -31,7 +31,7 @@ Any new touch, tap or click stops a glide.
 
 ## How it works
 
-- The driver is `billyjacoby/cirque-input-module` (pinned). It runs the pad in **absolute mode**, so it reports where the finger is, which circle scroll and the right-click zone need.
+- The driver lives in this repo, in `drivers/cirque/`. It is copied from `billyjacoby/cirque-input-module` and fixed so the trackpad can't stop working after a failed read; it also has a watchdog. See `drivers/cirque/README.md`. It runs the pad in **absolute mode**, so it reports where the finger is, which circle scroll and the right-click zone need.
 - The pad's own sleep (`sleep;`) is off. It checked for a finger only every 255 ms, so the first movement after a short pause was laggy. The pad still sleeps when the whole keyboard is idle.
 - `src/tp_gestures_core.h` is the gesture logic. It has no Zephyr dependencies and is tested on a PC with simulated taps, flicks and circles.
 - `src/tp_gestures.c` is the ZMK input processor that wraps it. It must be **first** in a listener's processor list.
@@ -59,6 +59,7 @@ All settings are in `snippets/input-trackpad-cirque/tp_processors.dtsi`. Edit, p
 | Circle scroll or right-click never triggers | Lower `circle-ring-inner`. Check the `r=` values in the debug log for touches at the very edge. |
 | Circle scroll triggers by accident | Raise `circle-ring-inner` (closer to the edge; max 512) or `circle-start-deg` |
 | Scroll-layer speed | `zip_scroll_scaler 1 4` in the listener snippet |
+| Trackpad stops responding | Flash a `_debug` build. `abs read failed` or `DR stuck` lines mean the driver hit a glitch and recovered. If they appear often, check the solder joints and the adapter's 4.7 kΩ pull-ups. |
 
 ## Debug builds
 

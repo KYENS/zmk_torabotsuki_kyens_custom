@@ -1,3 +1,5 @@
+rsource "drivers/cirque/Kconfig"
+
 config ZMK_INPUT_PROCESSOR_TP_GESTURES
     bool "Trackpad gestures input processor (cursor, glide, taps, circular scroll)"
     default y

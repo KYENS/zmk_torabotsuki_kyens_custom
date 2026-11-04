@@ -6,8 +6,6 @@ manifest:
       url-base: https://github.com/sekigon-gonnoc
     - name: oleksandrmaslov
       url-base: https://github.com/oleksandrmaslov      
-    - name: billyjacoby
-      url-base: https://github.com/billyjacoby
   projects:
     - name: zmk
       remote: zmkfirmware
@@ -36,8 +34,5 @@ manifest:
       revision: main
     - name: zmk-driver-kscan-4-direction-switch
       remote: sekigon-gonnoc
-    - name: cirque-input-module
-      remote: billyjacoby  # fork with absolute mode (finger position)
-      revision: ba53fe81bad6690c5999b9e0c113988c1246b4d1  # pinned
   self:
     path: config
