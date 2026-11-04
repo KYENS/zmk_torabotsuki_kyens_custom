@@ -1,0 +1,69 @@
+properties:
+  dr-gpios:
+    type: phandle-array
+    description: Data ready pin for the trackpad
+  rotate-90:
+    type: boolean
+  x-invert:
+    type: boolean
+  y-invert:
+    type: boolean
+  sleep:
+    type: boolean
+  no-secondary-tap:
+    type: boolean
+  no-taps:
+    type: boolean
+  sensitivity:
+    type: string
+    enum:
+      - 1x
+      - 2x
+      - 3x
+      - 4x
+    description: ADC attenuation (sensitivity) setting.
+  x-axis-z-min:
+    type: int
+    default: 5
+  y-axis-z-min:
+    type: int
+    default: 4
+  absolute-mode:
+    type: boolean
+  abs-rel-divisor:
+    type: int
+    description: If non zero, uses pad in absmode, but sends relative events (and touch press/release)
+    default: 0
+  absolute-mode-scale-to-width:
+    type: int
+    default: 1024
+    description: Scale reported x values to [0-1024]
+  absolute-mode-scale-to-height:
+    type: int
+    default: 1024
+    description: Scale reported y values to [0-1024]
+  absolute-mode-clamp-min-x:
+    type: int
+    default: 128
+    description: |
+      Specification says that active reporting of absolute position
+      is: 128 ≤ X ≤1920 and 64 ≤ Y ≤ 1472, but on my touchpad, I need other values.
+  absolute-mode-clamp-max-x:
+    type: int
+    default: 1920
+    description: |
+      Specification says that active reporting of absolute position
+      is: 128 ≤ X ≤1920 and 64 ≤ Y ≤ 1472, but on my touchpad, I need other values.
+  absolute-mode-clamp-min-y:
+    type: int
+    default: 64
+    description: |
+      Specification says that active reporting of absolute position
+      is: 128 ≤ X ≤1920 and 64 ≤ Y ≤ 1472, but on my touchpad, I need other values.
+  absolute-mode-clamp-max-y:
+    type: int
+    default: 1472
+    description: |
+      Specification says that active reporting of absolute position
+      is: 128 ≤ X ≤1920 and 64 ≤ Y ≤ 1472, but on my touchpad, I need other values.
+
