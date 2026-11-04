@@ -1,0 +1,26 @@
+/*
+ * Trackpad on the RIGHT (central) half, in place of the trackball.
+ * Use with input-trackpad-cirque and input-listener.
+ *
+ * Replaces the trackball's processors on this half's listener with the
+ * trackpad ones. Your layer-2 `scroller` stays on layer 2 but gets
+ * trackpad-tuned processors: hold layer 2 (left thumb) and slide to
+ * scroll, natural direction.
+ *
+ * Tune feel in ../input-trackpad-cirque/tp_processors.dtsi.
+ */
+
+#include <input/processors.dtsi>
+#include <dt-bindings/zmk/input_transform.h>
+#include "../input-trackpad-cirque/tp_processors.dtsi"
+
+&pointing_listener {
+    input-processors = <&tp_gestures>, <&tp_accel>;
+
+    scroller {
+        input-processors = <&tp_gestures>,
+                           <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>,
+                           <&zip_xy_to_scroll_mapper>,
+                           <&zip_scroll_scaler 1 4>;
+    };
+};

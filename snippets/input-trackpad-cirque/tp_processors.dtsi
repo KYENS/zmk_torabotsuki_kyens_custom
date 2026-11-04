@@ -1,0 +1,49 @@
+/*
+ * Trackpad processors, shared by the listener snippets.
+ * All the feel settings live here - edit, push, and Actions rebuilds.
+ */
+
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+    /* gestures: cursor, glide, taps, right-click zone, circular edge scroll */
+    tp_gestures: tp_gestures {
+        compatible = "zmk,input-processor-tp-gestures";
+        #input-processor-cells = <0>;
+
+        /* orientation: from your first test (left-right was reversed) */
+        invert-x;
+        /* invert-y; */
+
+        cursor-scale = <100>;        /* % base speed */
+        smoothing = <60>;            /* 100 = off, 50 = smoothest */
+
+        tap-ms = <180>;              /* tap = left click */
+        tap-travel = <24>;
+        right-click-clock = <2>;     /* tap the edge at 2 o'clock = right click (0 = off) */
+        right-click-width-deg = <45>;/* covers 1 to 3 o'clock */
+
+        circle-ring-inner = <360>;   /* start within the outer ~30% of the pad to circle-scroll */
+        circle-start-deg = <15>;
+        circle-units-per-turn = <180>; /* one full circle = 12 notches */
+        /* circle-invert; */         /* clockwise = scroll up */
+
+        glide-decay = <900>;         /* higher = longer glide, 0 = off */
+        glide-min-speed = <80>;      /* flick speed needed to glide */
+        glide-max-ms = <1500>;
+        lift-ms = <30>;
+    };
+
+    /* trackpad acceleration curve (separate from the trackball's pointer_accel) */
+    tp_accel: tp_accel {
+        compatible = "zmk,input-processor-acceleration";
+        #input-processor-cells = <0>;
+        input-type = <INPUT_EV_REL>;
+        track-remainders;
+        min-factor = <600>;           /* 0.6x when moving slowly: precise */
+        max-factor = <2200>;          /* 2.2x when moving fast */
+        speed-threshold = <1000>;     /* pad units/s where speed is 1.0x */
+        speed-max = <5000>;
+        acceleration-exponent = <2>;
+    };
+};

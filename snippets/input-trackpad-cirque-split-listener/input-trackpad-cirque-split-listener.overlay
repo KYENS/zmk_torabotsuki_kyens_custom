@@ -1,0 +1,24 @@
+/*
+ * Trackpad on the LEFT (peripheral) half, trackball on the right.
+ * Goes on the right-central build, together with input-split-listener.
+ * The right trackball keeps its own listener and settings.
+ *
+ * Hold layer 1 (right-thumb ENTER) and slide to scroll, natural direction.
+ * Tune feel in ../input-trackpad-cirque/tp_processors.dtsi.
+ */
+
+#include <input/processors.dtsi>
+#include <dt-bindings/zmk/input_transform.h>
+#include "../input-trackpad-cirque/tp_processors.dtsi"
+
+&pointing_device_split_listener {
+    input-processors = <&tp_gestures>, <&tp_accel>;
+
+    trackpad_scroll {
+        layers = <1>;
+        input-processors = <&tp_gestures>,
+                           <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>,
+                           <&zip_xy_to_scroll_mapper>,
+                           <&zip_scroll_scaler 1 4>;
+    };
+};

@@ -42,20 +42,19 @@
         reg = <0x2a>;
         dr-gpios = <&gpio0 20 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
         sensitivity = "2x";
-        sleep;
 
         /*
-         * Orientation. The keyboard's pointer listeners flip X and Y for
-         * the trackball (its sensor looks at the ball from below). These
-         * two lines cancel that flip, so the trackpad starts out unflipped.
-         *   Cursor moves the opposite way on both axes -> delete both lines.
-         *   Only one axis is wrong                    -> delete that one.
-         *   Axes are swapped (up moves sideways)      -> add rotate-90;
+         * Absolute mode: the pad reports finger position (0..1024 on both
+         * axes) and the tp_gestures processor turns it into cursor motion,
+         * glide, taps, right-click and circular edge scroll.
+         * Orientation is set in tp_processors.dtsi (invert-x / invert-y),
+         * not here.
+         *
+         * No `sleep;`: the pad's own sleep checks for a finger only every
+         * 255 ms, which made the first movement after a short pause laggy.
+         * The pad still sleeps when the whole keyboard goes idle
+         * (CONFIG_ZMK_INPUT_PINNACLE_IDLE_SLEEPER).
          */
-        x-invert;
-        y-invert;
-
-        /* no-taps; */           /* disable tap-to-click */
-        /* no-secondary-tap; */  /* disable the top-right-corner right-click tap */
+        absolute-mode;
     };
 };

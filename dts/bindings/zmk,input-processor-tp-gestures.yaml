@@ -1,0 +1,78 @@
+description: |
+  Trackpad gestures for a round Cirque pad in absolute mode: cursor
+  (smoothed), glide, tap = left click, tap on an edge zone = right click,
+  circular scroll by sliding around the edge. Must be first in the
+  listener's input-processors. Pad coordinates are 0..1024 on both axes.
+
+compatible: "zmk,input-processor-tp-gestures"
+
+include: ip_zero_param.yaml
+
+properties:
+  invert-x:
+    type: boolean
+    description: Flip the pad's X axis so it grows to the user's right.
+  invert-y:
+    type: boolean
+    description: Flip the pad's Y axis so it grows downward (toward the user).
+  cursor-scale:
+    type: int
+    default: 100
+    description: Cursor speed in percent (100 = 1 count per pad unit, before acceleration).
+  smoothing:
+    type: int
+    default: 60
+    description: Weight (%) of the newest movement in the smoothing filter. 100 = off, 50 = strongest.
+  tap-ms:
+    type: int
+    default: 180
+    description: Longest touch that still counts as a tap.
+  tap-travel:
+    type: int
+    default: 24
+    description: Most movement (pad units) a tap may have.
+  right-click-clock:
+    type: int
+    default: 2
+    description: A tap on the edge at this clock position (1-12, as you look at the pad) is a right click. 0 = off.
+  right-click-width-deg:
+    type: int
+    default: 45
+    description: Right-click zone covers clock position +/- this many degrees.
+  circle-ring-inner:
+    type: int
+    default: 360
+    description: Touches starting at least this far from the centre (pad units, edge = 512) can circle-scroll.
+  circle-start-deg:
+    type: int
+    default: 15
+    description: How far (degrees) the finger must slide around the edge before scrolling starts.
+  circle-units-per-turn:
+    type: int
+    default: 180
+    description: Scroll amount for one full circle (15 = one wheel notch). 0 disables circular scroll.
+  circle-invert:
+    type: boolean
+    description: Clockwise scrolls up instead of down.
+  glide-decay:
+    type: int
+    default: 900
+    description: Per-mille of glide speed kept every tick. Higher = longer glide. 0 = no glide.
+  glide-min-speed:
+    type: int
+    default: 80
+    description: Finger speed at lift (tenths of pad units per 10 ms) needed to glide.
+  glide-stop-speed:
+    type: int
+    default: 4
+    description: Glide stops below this speed (tenths of pad units per tick).
+  glide-tick-ms:
+    type: int
+    default: 10
+  glide-max-ms:
+    type: int
+    default: 1500
+  lift-ms:
+    type: int
+    default: 30
+    description: No position report for this long = finger lifted.
