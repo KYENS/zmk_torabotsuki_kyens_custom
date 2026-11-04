@@ -11,9 +11,9 @@
         compatible = "zmk,input-processor-tp-gestures";
         #input-processor-cells = <0>;
 
-        /* orientation: from your first test (left-right was reversed) */
+        /* orientation: from your tests (left-right and up-down both needed flipping) */
         invert-x;
-        /* invert-y; */
+        invert-y;
 
         cursor-scale = <60>;         /* % base speed (was 100: too sensitive) */
         smoothing = <85>;            /* noise filter for small movements, 0..90 */
