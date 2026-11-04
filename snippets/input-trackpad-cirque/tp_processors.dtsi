@@ -15,15 +15,16 @@
         invert-x;
         /* invert-y; */
 
-        cursor-scale = <100>;        /* % base speed */
-        smoothing = <60>;            /* 100 = off, 50 = smoothest */
+        cursor-scale = <60>;         /* % base speed (was 100: too sensitive) */
+        smoothing = <85>;            /* noise filter for small movements, 0..90 */
+        rest-threshold = <6>;        /* raise (8-12) if the cursor drifts while your finger rests */
 
-        tap-ms = <180>;              /* tap = left click */
-        tap-travel = <24>;
+        tap-ms = <200>;              /* tap = left click */
+        tap-travel = <24>;           /* max distance from touch-down for a tap */
         right-click-clock = <2>;     /* tap the edge at 2 o'clock = right click (0 = off) */
         right-click-width-deg = <45>;/* covers 1 to 3 o'clock */
 
-        circle-ring-inner = <360>;   /* start within the outer ~30% of the pad to circle-scroll */
+        circle-ring-inner = <340>;   /* start within the outer third of the pad to circle-scroll */
         circle-start-deg = <15>;
         circle-units-per-turn = <180>; /* one full circle = 12 notches */
         /* circle-invert; */         /* clockwise = scroll up */
@@ -31,7 +32,7 @@
         glide-decay = <900>;         /* higher = longer glide, 0 = off */
         glide-min-speed = <80>;      /* flick speed needed to glide */
         glide-max-ms = <1500>;
-        lift-ms = <30>;
+        lift-ms = <50>;
     };
 
     /* trackpad acceleration curve (separate from the trackball's pointer_accel) */
@@ -41,7 +42,7 @@
         input-type = <INPUT_EV_REL>;
         track-remainders;
         min-factor = <600>;           /* 0.6x when moving slowly: precise */
-        max-factor = <2200>;          /* 2.2x when moving fast */
+        max-factor = <1800>;          /* 1.8x when moving fast */
         speed-threshold = <1000>;     /* pad units/s where speed is 1.0x */
         speed-max = <5000>;
         acceleration-exponent = <2>;

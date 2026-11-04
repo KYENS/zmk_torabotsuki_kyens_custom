@@ -76,8 +76,19 @@ static void lift_work_cb(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct tp_gestures_data *data = CONTAINER_OF(dwork, struct tp_gestures_data, lift_work);
     k_mutex_lock(&data->lock, K_FOREVER);
+    struct tpg snap = data->st;
     bool glide = data->st.state != TPG_IDLE && tpg_lift(&data->st, &data->cfg->core, emit, data);
     k_mutex_unlock(&data->lock);
+    if (snap.state != TPG_IDLE) {
+        static const char *const names[] = {"idle", "tap/move", "move", "ring?", "circle"};
+        int32_t dur = (int32_t)(snap.t_last - snap.t0);
+        /* one line per touch; read it with the zmk-usb-logging build */
+        LOG_INF("touch: %s start=(%d,%d) r=%d dur=%dms frames=%d (%dms/frame) max_disp=%d "
+                "glide=%d | pad seen x %d..%d y %d..%d",
+                names[snap.state], snap.sx / TPG_FP, snap.sy / TPG_FP, snap.start_r, dur,
+                snap.frames, snap.frames > 1 ? dur / (snap.frames - 1) : 0, snap.max_disp, glide,
+                snap.min_x, snap.max_x, snap.min_y, snap.max_y);
+    }
     if (glide) {
         k_work_reschedule(&data->glide_work, K_MSEC(data->cfg->glide_tick_ms));
     }
@@ -158,6 +169,7 @@ static const struct zmk_input_processor_driver_api tp_gestures_api = {
                 .invert_y = DT_INST_PROP(n, invert_y),                                             \
                 .cursor_scale_pct = DT_INST_PROP(n, cursor_scale),                                 \
                 .smoothing_pct = DT_INST_PROP(n, smoothing),                                       \
+                .rest_threshold = DT_INST_PROP(n, rest_threshold),                                 \
                 .tap_ms = DT_INST_PROP(n, tap_ms),                                                 \
                 .tap_travel = DT_INST_PROP(n, tap_travel),                                         \
                 .right_click_clock = DT_INST_PROP(n, right_click_clock),                           \

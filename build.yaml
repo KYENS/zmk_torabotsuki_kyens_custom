@@ -39,5 +39,16 @@ include:
     shield: torabo_tsuki_lp_right
     snippet: "studio-rpc-usb-uart split-central input-trackball input-listener input-split-listener input-trackpad-cirque-split-listener"
     artifact-name: torabo_tsuki_lp_cirque_left_ball_right_central
+  # Debug builds: same as above, but log one line per trackpad touch over USB
+  # (open the keyboard's serial port, e.g. PuTTY / screen at any baud rate).
+  # ZMK Studio over USB is not available in these builds.
+  - board: bmp_boost
+    shield: torabo_tsuki_lp_right
+    snippet: "zmk-usb-logging split-central input-trackpad-cirque input-listener input-trackpad-cirque-listener"
+    artifact-name: torabo_tsuki_lp_cirque_right_central_debug
+  - board: bmp_boost
+    shield: torabo_tsuki_lp_right
+    snippet: "zmk-usb-logging split-central input-trackball input-listener input-split-listener input-trackpad-cirque-split-listener"
+    artifact-name: torabo_tsuki_lp_cirque_left_ball_right_central_debug
   - board: bmp_boost
     shield: settings_reset

@@ -46,8 +46,9 @@ All settings are in `snippets/input-trackpad-cirque/tp_processors.dtsi`. Edit, p
 | Left/right reversed | Toggle `invert-x;` |
 | Up/down reversed | Toggle `invert-y;` |
 | Cursor too slow or too fast overall | `cursor-scale` (%), or `tp_accel` `min-factor` / `max-factor` |
-| Cursor shaky | Lower `smoothing` (50 is smoothest) |
-| Cursor feels laggy | Raise `smoothing` (100 is off) |
+| Cursor drifts while your finger rests | Raise `rest-threshold` (try 8–12) |
+| Cursor shaky during slow moves | Raise `smoothing` (90 max) |
+| Cursor feels laggy on small moves | Lower `smoothing` |
 | Glide too long or too short | `glide-decay` (950 is long, 850 is short, 0 is off) |
 | Glide triggers too easily | Raise `glide-min-speed` |
 | Taps not registering | Raise `tap-ms` or `tap-travel` |
@@ -55,8 +56,31 @@ All settings are in `snippets/input-trackpad-cirque/tp_processors.dtsi`. Edit, p
 | Right-click zone in the wrong place | `right-click-clock` (1–12) and `right-click-width-deg`. Set `right-click-clock` to 0 to turn the zone off. |
 | Circle scroll too fast or too slow | `circle-units-per-turn` (15 = 1 notch) |
 | Circle scroll goes the wrong way | Uncomment `circle-invert;` |
+| Circle scroll or right-click never triggers | Lower `circle-ring-inner`. Check the `r=` values in the debug log for touches at the very edge. |
 | Circle scroll triggers by accident | Raise `circle-ring-inner` (closer to the edge; max 512) or `circle-start-deg` |
 | Scroll-layer speed | `zip_scroll_scaler 1 4` in the listener snippet |
+
+## Debug builds
+
+`torabo_tsuki_lp_cirque_right_central_debug` and `torabo_tsuki_lp_cirque_left_ball_right_central_debug` work like the normal right-half builds, but they log one line per trackpad touch over USB. In these builds, ZMK Studio over USB isn't available.
+
+1. Flash the debug build to the right half and leave the USB cable plugged in.
+2. Open the keyboard's COM port in a serial terminal, such as PuTTY or the Arduino serial monitor. Any baud rate works.
+3. Look for lines like this:
+
+   ```
+   touch: tap/move start=(700,300) r=268 dur=120ms frames=12 (10ms/frame) max_disp=9 glide=0 | pad seen x 40..990 y 35..985
+   ```
+
+What the fields mean:
+
+| Field | Meaning |
+|---|---|
+| `tap/move` / `move` / `ring?` / `circle` | How the touch was classified |
+| `r` | Distance of the touch start from the pad centre. The edge is about 512. Circle scroll and right-click need at least `circle-ring-inner`. |
+| `ms/frame` | How often the pad reports. It should be about 10. |
+| `max_disp` | How far the finger moved from touch-down. A tap needs `tap-travel` or less. |
+| `pad seen` | The coordinate range seen since boot. Sweep around the edge once to see your pad's full reach. |
 
 ## Hardware
 

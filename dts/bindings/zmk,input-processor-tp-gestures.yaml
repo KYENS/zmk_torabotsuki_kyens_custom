@@ -17,20 +17,24 @@ properties:
     description: Flip the pad's Y axis so it grows downward (toward the user).
   cursor-scale:
     type: int
-    default: 100
+    default: 60
     description: Cursor speed in percent (100 = 1 count per pad unit, before acceleration).
   smoothing:
     type: int
-    default: 60
-    description: Weight (%) of the newest movement in the smoothing filter. 100 = off, 50 = strongest.
+    default: 85
+    description: Noise filter strength for small movements, 0..90 (%). Fast movement is never smoothed.
+  rest-threshold:
+    type: int
+    default: 6
+    description: Pad units the finger must move before the cursor follows. Raise if the cursor drifts while your finger rests.
   tap-ms:
     type: int
-    default: 180
+    default: 200
     description: Longest touch that still counts as a tap.
   tap-travel:
     type: int
     default: 24
-    description: Most movement (pad units) a tap may have.
+    description: Farthest the finger may move from where it touched down (pad units) for a tap.
   right-click-clock:
     type: int
     default: 2
@@ -41,7 +45,7 @@ properties:
     description: Right-click zone covers clock position +/- this many degrees.
   circle-ring-inner:
     type: int
-    default: 360
+    default: 340
     description: Touches starting at least this far from the centre (pad units, edge = 512) can circle-scroll.
   circle-start-deg:
     type: int
@@ -74,5 +78,5 @@ properties:
     default: 1500
   lift-ms:
     type: int
-    default: 30
+    default: 50
     description: No position report for this long = finger lifted.
