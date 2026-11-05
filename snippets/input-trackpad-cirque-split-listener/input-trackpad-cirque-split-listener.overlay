@@ -12,7 +12,7 @@
 #include "../input-trackpad-cirque/tp_processors.dtsi"
 
 &pointing_device_split_listener {
-    input-processors = <&tp_gestures>, <&tp_accel>;
+    input-processors = <&tp_gestures>;
 
     trackpad_scroll {
         layers = <1>;

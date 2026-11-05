@@ -3,14 +3,19 @@
  * unit-tested on a PC). Input: absolute finger positions from a round
  * Cirque pad, 0..1024 on both axes, ~100 frames/s while touching.
  *
- * Absolute positions jitter by a few units even when the finger is still,
- * so everything here works on a FILTERED position:
- *   - adaptive low-pass: heavy smoothing for tiny changes (noise), none
- *     for real fast movement (no lag)
- *   - rest lock: the cursor doesn't move until the finger has really moved
- *     `rest-threshold` away, and locks again once it stays put
- * Taps use the distance from the touch start (not path length), so jitter
- * can't turn a tap into a move.
+ * Absolute positions jitter by a few units even when the finger is still.
+ * Everything here works on a position cleaned by a 1€ ("One Euro") filter:
+ * a low-pass whose cutoff rises with the (smoothed) finger speed, so slow
+ * movement is heavily smoothed (no jitter) and fast movement isn't (no
+ * lag). Because the cutoff follows a smoothed speed rather than each
+ * frame's raw jump, the amount of smoothing doesn't flicker with the noise.
+ *
+ * Pointer acceleration is done here too, from the same smoothed speed and
+ * for both axes together, so diagonals don't wobble and the gain doesn't
+ * change from one report to the next.
+ *
+ * A rest lock keeps the cursor still while the finger rests, and taps use
+ * the distance from the touch start, so noise can't turn a tap into a move.
  *
  * Output (through tpg_emit_fn):
  *   cursor motion   REL_X / REL_Y deltas
@@ -38,15 +43,27 @@ struct tpg_cfg {
      * All output (cursor, glide, zones, circle direction) is in the user's view. */
     bool invert_x, invert_y;
     /* cursor */
-    int32_t cursor_scale_pct; /* 100 = 1 output count per pad unit (1024 units across) */
-    int32_t smoothing_pct;    /* strength of the noise filter for small movements, 0..90 */
+    int32_t cursor_scale_pct; /* 100 = 1 output count per pad unit at 1.0x acceleration */
     int32_t rest_threshold;   /* pad units the finger must move before the cursor follows */
+    int32_t rest_speed;       /* pad units/s below which the finger counts as stopped */
+    /* 1€ filter */
+    int32_t min_cutoff_mhz;   /* smoothing when slow: lower = smoother, more lag */
+    int32_t beta;             /* how fast smoothing relaxes with speed (mHz per unit/s) */
+    int32_t d_cutoff_mhz;     /* smoothing of the speed estimate */
+    int32_t max_lag;          /* filtered position may trail the finger by at most this (pad units) */
+    /* acceleration, from the filtered speed (pad units/s):
+     * gain rises from accel_min (standing still) to 1.0 at accel_mid_speed,
+     * then to accel_max at accel_max_speed, along a quadratic curve */
+    int32_t accel_min;        /* per-mille */
+    int32_t accel_max;        /* per-mille */
+    int32_t accel_mid_speed, accel_max_speed;
     /* taps */
     int32_t tap_ms;     /* max touch time for a tap */
     int32_t tap_travel; /* max distance from the touch start (pad units) for a tap */
     /* right click: tap on the edge ring around this clock position */
     int32_t right_click_clock;     /* 1..12 as seen by the user, 0 = off */
     int32_t right_click_width_deg; /* zone is clock +/- this */
+    int32_t right_click_inner;     /* tap must be at least this far from centre (pad units) */
     /* circular scroll */
     int32_t ring_inner;      /* touches starting at least this far from centre (pad units, max 512) */
     int32_t ring_start_deg;  /* sliding this far around the ring starts scrolling */
@@ -62,20 +79,20 @@ struct tpg_cfg {
 enum tpg_state { TPG_IDLE, TPG_MOVE_PENDING, TPG_MOVE, TPG_RING_PENDING, TPG_RING };
 
 #define TPG_FP 256
-#define TPG_STILL_FRAMES 10 /* frames used to decide the finger has stopped */
+#define TPG_STILL_FRAMES 8 /* frames below rest_speed before the cursor locks again */
 
 struct tpg {
     enum tpg_state state;
     int64_t t0, t_last;
-    /* filtered position, FP, user view */
+    /* filtered position and speed (FP; speed in FP pad units/s), user view */
     int32_t fx, fy;
+    int32_t dxh, dyh;
     int32_t sx, sy;         /* touch start (filtered), FP */
     int32_t max_disp;       /* farthest distance from the start, pad units */
     /* rest lock */
     bool moving;
-    int32_t ax, ay;         /* where the cursor is anchored while resting, FP */
-    int32_t wx, wy;         /* position at the start of the stillness window, FP */
-    int32_t wframes;
+    int32_t ax, ay;         /* anchor while resting, FP */
+    int32_t still;          /* consecutive slow frames */
     /* ring */
     int32_t start_r;
     int32_t last_ang, ang_acc; /* tenths of degrees */
@@ -83,7 +100,7 @@ struct tpg {
     int32_t buf_dx, buf_dy;    /* FP motion held back while deciding ring vs cursor */
     /* output remainders, FP */
     int32_t rem_x, rem_y;
-    /* velocity, FP pad units per frame */
+    /* velocity for glide, FP pad units per frame */
     int32_t vx, vy;
     /* glide */
     bool gliding;
@@ -125,21 +142,20 @@ static inline int32_t tpg_wrap_d10(int32_t d) {
     return d;
 }
 
-static inline int32_t tpg_isqrt(int32_t v) {
-    int32_t r = 0, b = 1 << 30;
+static inline int32_t tpg_isqrt(int64_t v) {
+    int64_t r = 0, b = (int64_t)1 << 40;
     if (v <= 0) return 0;
     while (b > v) b >>= 2;
     while (b) {
         if (v >= r + b) { v -= r + b; r = (r >> 1) + b; } else { r >>= 1; }
         b >>= 2;
     }
-    return r;
+    return (int32_t)r;
 }
 
 /* distance in pad units between two FP points */
 static inline int32_t tpg_dist(int32_t dxf, int32_t dyf) {
-    int32_t dx = dxf / TPG_FP, dy = dyf / TPG_FP;
-    return tpg_isqrt(dx * dx + dy * dy);
+    return tpg_isqrt(((int64_t)dxf * dxf + (int64_t)dyf * dyf)) / TPG_FP;
 }
 
 static inline int32_t tpg_take(int32_t *acc) {
@@ -156,22 +172,40 @@ static inline int32_t tpg_speed(int32_t vx, int32_t vy) {
 /* radius (pad units) and angle (tenths of degrees) of a filtered position */
 static inline void tpg_polar(int32_t fx, int32_t fy, int32_t *r, int32_t *ang) {
     int32_t ux = fx / TPG_FP - 512, uy = fy / TPG_FP - 512;
-    *r = tpg_isqrt(ux * ux + uy * uy);
+    *r = tpg_isqrt((int64_t)ux * ux + (int64_t)uy * uy);
     *ang = tpg_atan2_d10(uy, ux);
+}
+
+/* 1€ smoothing factor (of 256) for a cutoff (mHz) and frame time (ms) */
+static inline int32_t tpg_alpha(int32_t fc_mhz, int32_t te_ms) {
+    int64_t x = 6283LL * fc_mhz * te_ms / 1000000; /* 2*pi*fc*Te, x1000 */
+    return (int32_t)(256 * x / (x + 1000)) + 1;
+}
+
+/* acceleration gain (per-mille) for a speed in pad units/s */
+static inline int32_t tpg_gain(const struct tpg_cfg *c, int32_t speed) {
+    int32_t v1 = c->accel_mid_speed, v2 = c->accel_max_speed;
+    if (speed >= v2) return c->accel_max;
+    if (speed <= v1) {
+        int64_t t = (int64_t)speed * 1000 / v1;
+        return c->accel_min + (int32_t)((1000 - c->accel_min) * t * t / 1000000);
+    }
+    int64_t t = (int64_t)(speed - v1) * 1000 / (v2 - v1);
+    return 1000 + (int32_t)((c->accel_max - 1000) * t * t / 1000000);
 }
 
 /* ---- output ---- */
 
 static inline void tpg_cursor(struct tpg *s, const struct tpg_cfg *c, int32_t dxf, int32_t dyf,
                               tpg_emit_fn emit, void *ctx) {
-    s->rem_x += dxf * c->cursor_scale_pct / 100;
-    s->rem_y += dyf * c->cursor_scale_pct / 100;
+    int32_t speed = tpg_speed(s->dxh, s->dyh) / TPG_FP; /* pad units/s */
+    int64_t gain = (int64_t)tpg_gain(c, speed) * c->cursor_scale_pct; /* x100000 */
+    s->rem_x += (int32_t)(dxf * gain / 100000);
+    s->rem_y += (int32_t)(dyf * gain / 100000);
     int32_t ox = tpg_take(&s->rem_x), oy = tpg_take(&s->rem_y);
     if (ox || oy) {
         emit(ctx, TPG_OUT_MOVE, ox, oy);
     }
-    s->vx = (s->vx + dxf) / 2;
-    s->vy = (s->vy + dyf) / 2;
 }
 
 static inline void tpg_wheel(struct tpg *s, const struct tpg_cfg *c, int32_t dang_d10,
@@ -212,11 +246,12 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
     if (s->state == TPG_IDLE) {
         s->gliding = false;
         s->t0 = s->t_last = now;
-        s->fx = s->sx = s->ax = s->wx = xf;
-        s->fy = s->sy = s->ay = s->wy = yf;
+        s->fx = s->sx = s->ax = xf;
+        s->fy = s->sy = s->ay = yf;
+        s->dxh = s->dyh = 0;
         s->max_disp = 0;
         s->moving = false;
-        s->wframes = 0;
+        s->still = 0;
         s->buf_dx = s->buf_dy = 0;
         s->wheel_rem = 0;
         s->rem_x = s->rem_y = 0;
@@ -228,20 +263,36 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
                                                                            : TPG_MOVE_PENDING;
         return;
     }
+    int32_t te = (int32_t)(now - s->t_last);
+    if (te < 2) te = 2;
+    if (te > 50) te = 50;
     s->t_last = now;
     s->frames++;
 
-    /* adaptive low-pass: alpha 0.1..1 (of 256) depending on how far the raw
-     * position is from the filtered one. Small = noise -> heavy filtering. */
-    int32_t jump = tpg_dist(xf - s->fx, yf - s->fy);
-    int32_t lo = 256 - c->smoothing_pct * 256 / 100; /* alpha for noise-sized changes */
-    int32_t alpha = lo + (256 - lo) * jump / 24;      /* full speed at >= 24 units/frame */
-    if (alpha > 256) alpha = 256;
-    int32_t nfx = s->fx + (xf - s->fx) * alpha / 256;
-    int32_t nfy = s->fy + (yf - s->fy) * alpha / 256;
+    /* ---- 1€ filter ---- */
+    int32_t speed = tpg_speed(s->dxh, s->dyh) / TPG_FP; /* smoothed, pad units/s */
+    int32_t a = tpg_alpha(c->min_cutoff_mhz + c->beta * speed, te);
+    if (a > 256) a = 256;
+    /* never trail the finger by more than max_lag units: big jumps are real
+     * movement, so a fast start isn't delayed while the filter catches up.
+     * Noise is far smaller than max_lag, so it doesn't trigger this. */
+    int32_t lag = tpg_dist(xf - s->fx, yf - s->fy);
+    if (lag > c->max_lag) {
+        int32_t need = 256 - c->max_lag * 256 / lag;
+        if (need > a) a = need;
+    }
+    int32_t nfx = s->fx + (int32_t)((int64_t)(xf - s->fx) * a / 256);
+    int32_t nfy = s->fy + (int32_t)((int64_t)(yf - s->fy) * a / 256);
     int32_t dxf = nfx - s->fx, dyf = nfy - s->fy;
     s->fx = nfx;
     s->fy = nfy;
+    /* speed of the filtered position, itself smoothed */
+    int32_t ad = tpg_alpha(c->d_cutoff_mhz, te);
+    s->dxh += (int32_t)(((int64_t)dxf * 1000 / te - s->dxh) * ad / 256);
+    s->dyh += (int32_t)(((int64_t)dyf * 1000 / te - s->dyh) * ad / 256);
+    /* glide velocity in FP units per 10 ms frame */
+    s->vx = s->dxh / 100;
+    s->vy = s->dyh / 100;
 
     int32_t disp = tpg_dist(s->fx - s->sx, s->fy - s->sy);
     if (disp > s->max_disp) s->max_disp = disp;
@@ -260,29 +311,24 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
         /* rest lock: ignore jitter until the finger really moves */
         if (!s->moving) {
             if (tpg_dist(s->fx - s->ax, s->fy - s->ay) <= c->rest_threshold) {
-                /* settle the anchor onto the true resting point (the first
-                 * sample of a touch is the noisiest) */
+                /* settle the anchor onto the true resting point */
                 s->ax += (s->fx - s->ax) / 32;
                 s->ay += (s->fy - s->ay) / 32;
-                s->vx = s->vy = 0;
                 break;
             }
-            s->moving = true;
-            s->wx = s->fx;
-            s->wy = s->fy;
-            s->wframes = 0;
-            dxf = s->fx - s->ax; /* catch up from the anchor, nothing is lost */
-            dyf = s->fy - s->ay;
-        } else if (++s->wframes >= TPG_STILL_FRAMES) {
-            /* stayed within a few units for a while: finger has stopped */
-            if (tpg_dist(s->fx - s->wx, s->fy - s->wy) <= c->rest_threshold / 2 + 1) {
+            s->moving = true; /* start following from here, no catch-up jump */
+            s->still = 0;
+            break;
+        }
+        if (speed < c->rest_speed) {
+            if (++s->still >= TPG_STILL_FRAMES) {
                 s->moving = false;
                 s->ax = s->fx;
                 s->ay = s->fy;
+                break;
             }
-            s->wx = s->fx;
-            s->wy = s->fy;
-            s->wframes = 0;
+        } else {
+            s->still = 0;
         }
         tpg_cursor(s, c, dxf, dyf, emit, ctx);
         break;
@@ -291,17 +337,21 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
         s->buf_dy += dyf;
         s->ang_acc += dang;
         int32_t arc = abs(s->ang_acc) * r / 573; /* angle(tenths) * r, 573 = 10*180/pi */
-        if (abs(s->ang_acc) >= c->ring_start_deg * 10 && r >= c->ring_inner * 3 / 4) {
+        /* until scrolling starts the finger must stay on the ring: a circle
+         * keeps its distance from the centre, a straight drag dips inward */
+        int32_t ring_min = c->ring_inner - 20;
+        if (ring_min < s->start_r - 50) {
+            ring_min = s->start_r - 50; /* dipped well inward from where it started */
+        }
+        if (abs(s->ang_acc) >= c->ring_start_deg * 10 && r >= ring_min) {
             s->state = TPG_RING;
             tpg_wheel(s, c, s->ang_acc, emit, ctx);
-        } else if (r < c->ring_inner * 3 / 4 ||
+        } else if (r < ring_min ||
                    (disp > c->tap_travel * 2 && arc < disp / 2)) {
             /* went inward, or moved across rather than around the ring: cursor */
             s->state = s->max_disp > c->tap_travel ? TPG_MOVE : TPG_MOVE_PENDING;
             s->moving = true;
-            s->wx = s->fx;
-            s->wy = s->fy;
-            s->wframes = 0;
+            s->still = 0;
             tpg_cursor(s, c, s->buf_dx, s->buf_dy, emit, ctx);
         }
         break;
@@ -315,7 +365,7 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
 }
 
 static inline bool tpg_in_right_zone(const struct tpg *s, const struct tpg_cfg *c) {
-    if (c->right_click_clock <= 0 || s->start_r < c->ring_inner) {
+    if (c->right_click_clock <= 0 || s->start_r < c->right_click_inner) {
         return false;
     }
     int32_t r, ang;
@@ -360,8 +410,11 @@ static inline bool tpg_glide_tick(struct tpg *s, const struct tpg_cfg *c, tpg_em
         s->gliding = false;
         return false;
     }
-    s->grx += s->gvx * c->cursor_scale_pct / 100;
-    s->gry += s->gvy * c->cursor_scale_pct / 100;
+    /* same gain as the cursor at this speed */
+    int64_t gain = (int64_t)tpg_gain(c, tpg_speed(s->gvx, s->gvy) * 100 / TPG_FP) *
+                   c->cursor_scale_pct;
+    s->grx += (int32_t)(s->gvx * gain / 100000);
+    s->gry += (int32_t)(s->gvy * gain / 100000);
     int32_t ox = tpg_take(&s->grx), oy = tpg_take(&s->gry);
     if (ox || oy) {
         emit(ctx, TPG_OUT_MOVE, ox, oy);

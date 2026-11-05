@@ -15,7 +15,7 @@
 #include "../input-trackpad-cirque/tp_processors.dtsi"
 
 &pointing_listener {
-    input-processors = <&tp_gestures>, <&tp_accel>;
+    input-processors = <&tp_gestures>;
 
     scroller {
         input-processors = <&tp_gestures>,

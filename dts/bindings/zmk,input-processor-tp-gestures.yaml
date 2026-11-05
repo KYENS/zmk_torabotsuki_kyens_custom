@@ -18,11 +18,43 @@ properties:
   cursor-scale:
     type: int
     default: 60
-    description: Cursor speed in percent (100 = 1 count per pad unit, before acceleration).
-  smoothing:
+    description: Cursor speed in percent (100 = 1 count per pad unit at 1.0x acceleration).
+  rest-speed:
     type: int
-    default: 85
-    description: Noise filter strength for small movements, 0..90 (%). Fast movement is never smoothed.
+    default: 40
+    description: Finger speed (pad units/s) below which the cursor locks again (stops drifting).
+  filter-min-cutoff-mhz:
+    type: int
+    default: 1000
+    description: 1-euro filter cutoff when moving slowly (mHz). Lower = smoother but laggier slow moves.
+  filter-beta:
+    type: int
+    default: 10
+    description: How quickly smoothing relaxes as you move faster. Higher = less lag on fast moves, more jitter.
+  filter-speed-cutoff-mhz:
+    type: int
+    default: 1000
+    description: Smoothing of the speed estimate used by the filter and acceleration (mHz).
+  filter-max-lag:
+    type: int
+    default: 16
+    description: The smoothed position never trails the finger by more than this (pad units), so fast starts aren't delayed.
+  accel-min:
+    type: int
+    default: 650
+    description: Cursor gain (per-mille) for very slow movement.
+  accel-max:
+    type: int
+    default: 1800
+    description: Cursor gain (per-mille) for fast movement.
+  accel-mid-speed:
+    type: int
+    default: 1400
+    description: Finger speed (pad units/s) where the gain is 1.0.
+  accel-max-speed:
+    type: int
+    default: 7000
+    description: Finger speed (pad units/s) where the gain reaches accel-max.
   rest-threshold:
     type: int
     default: 6
@@ -43,13 +75,17 @@ properties:
     type: int
     default: 45
     description: Right-click zone covers clock position +/- this many degrees.
-  circle-ring-inner:
+  right-click-inner:
     type: int
     default: 340
+    description: A right-click tap must be at least this far from the centre (pad units, edge = 512).
+  circle-ring-inner:
+    type: int
+    default: 420
     description: Touches starting at least this far from the centre (pad units, edge = 512) can circle-scroll.
   circle-start-deg:
     type: int
-    default: 15
+    default: 25
     description: How far (degrees) the finger must slide around the edge before scrolling starts.
   circle-units-per-turn:
     type: int
