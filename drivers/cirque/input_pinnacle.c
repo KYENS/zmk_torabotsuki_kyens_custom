@@ -470,6 +470,9 @@ static void pinnacle_work_cb(struct k_work *work) {
  * and re-arms the interrupt. Recovers from any path that left DR masked.
  */
 #define PINNACLE_WATCHDOG_MS 500
+#define PINNACLE_HEALTH_EVERY 4 /* check the pad's configuration every 2 s */
+
+static int pinnacle_configure(const struct device *dev);
 
 static void pinnacle_watchdog_cb(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
@@ -477,9 +480,39 @@ static void pinnacle_watchdog_cb(struct k_work *work) {
     const struct device *dev = data->dev;
     const struct pinnacle_config *config = dev->config;
 
-    if (!data->suspended && gpio_pin_get_dt(&config->dr) > 0 && !k_work_is_pending(&data->work)) {
+    if (data->suspended) {
+        k_work_schedule(&data->watchdog, K_MSEC(PINNACLE_WATCHDOG_MS));
+        return;
+    }
+
+    /* 1. DR held active with nothing queued to service it */
+    if (gpio_pin_get_dt(&config->dr) > 0 && !k_work_is_pending(&data->work)) {
         LOG_WRN("DR stuck active, recovering");
         k_work_submit(&data->work);
+    }
+
+    /* 2. the pad reset itself (brown-out, static) and lost its settings:
+     * it then reports nothing in the expected format and looks dead.
+     * Read FEED_CFG1 back; if it's wrong (or unreadable twice), reconfigure. */
+    if (++data->health_tick >= PINNACLE_HEALTH_EVERY) {
+        data->health_tick = 0;
+        uint8_t feed1 = 0;
+        int ret = pinnacle_seq_read(dev, PINNACLE_FEED_CFG1, &feed1, 1);
+        /* only the bits that matter: reporting on, and absolute mode */
+        const uint8_t mask = PINNACLE_FEED_CFG1_EN_FEED | PINNACLE_FEED_CFG1_ABS_MODE;
+        bool bad = (ret < 0) || (feed1 & mask) != (data->feed_cfg1 & mask);
+        data->health_fail = bad ? data->health_fail + 1 : 0;
+        if ((ret >= 0 && bad) || data->health_fail >= 2) {
+            LOG_WRN("pad lost its configuration (read %d, FEED_CFG1 0x%02x, want 0x%02x), "
+                    "reconfiguring",
+                    ret, feed1, data->feed_cfg1);
+            set_int(dev, false);
+            if (pinnacle_configure(dev) >= 0) {
+                data->health_fail = 0;
+            }
+            pinnacle_clear_status(dev);
+            set_int(dev, true);
+        }
     }
     k_work_schedule(&data->watchdog, K_MSEC(PINNACLE_WATCHDOG_MS));
 }
@@ -655,7 +688,9 @@ int pinnacle_set_shutdown(const struct device *dev, bool enabled) {
     return ret;
 }
 
-static int pinnacle_init(const struct device *dev) {
+/* Write the pad's whole register configuration. Used at boot and by the
+ * watchdog when the pad has reset itself (brown-out, ESD) and lost it. */
+static int pinnacle_configure(const struct device *dev) {
     struct pinnacle_data *data = dev->data;
     const struct pinnacle_config *config = dev->config;
     int ret;
@@ -761,6 +796,17 @@ static int pinnacle_init(const struct device *dev) {
         LOG_ERR("can't write %d", ret);
         return ret;
     }
+    data->feed_cfg1 = feed_cfg1;
+    return 0;
+}
+
+static int pinnacle_init(const struct device *dev) {
+    struct pinnacle_data *data = dev->data;
+    const struct pinnacle_config *config = dev->config;
+    int ret = pinnacle_configure(dev);
+    if (ret < 0) {
+        return ret;
+    }
 
     data->dev = dev;
 
@@ -777,7 +823,7 @@ static int pinnacle_init(const struct device *dev) {
     k_work_init(&data->work, pinnacle_work_cb);
     k_work_init_delayable(&data->watchdog, pinnacle_watchdog_cb);
 
-    pinnacle_write(dev, PINNACLE_FEED_CFG1, feed_cfg1);
+    pinnacle_write(dev, PINNACLE_FEED_CFG1, data->feed_cfg1);
 
     set_int(dev, true);
     k_work_schedule(&data->watchdog, K_MSEC(PINNACLE_WATCHDOG_MS));

@@ -52,8 +52,7 @@
          *
          * No `sleep;`: the pad's own sleep checks for a finger only every
          * 255 ms, which made the first movement after a short pause laggy.
-         * The pad still sleeps when the whole keyboard goes idle
-         * (CONFIG_ZMK_INPUT_PINNACLE_IDLE_SLEEPER).
+         * The pad is switched off when the keyboard goes into deep sleep.
          */
         absolute-mode;
         /* ignore faint touches (hover, noise) that made the cursor float.

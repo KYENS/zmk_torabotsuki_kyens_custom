@@ -85,6 +85,8 @@ struct pinnacle_data {
     struct k_work work;
     struct k_work_delayable watchdog; /* re-arms DR if it ever gets stuck masked */
     bool suspended;
+    uint8_t feed_cfg1;   /* expected FEED_CFG1, to detect a pad that reset itself */
+    uint8_t health_tick, health_fail;
 };
 
 enum pinnacle_sensitivity {
