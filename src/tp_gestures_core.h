@@ -63,9 +63,10 @@ struct tpg_cfg {
     /* right click: tap on the edge ring around this clock position */
     int32_t right_click_clock;     /* 1..12 as seen by the user, 0 = off */
     int32_t right_click_width_deg; /* zone is clock +/- this */
-    int32_t right_click_inner;     /* tap must be at least this far from centre (pad units) */
+    int32_t right_click_pct;       /* tap must be at least this % of the pad's reach from centre */
     /* circular scroll */
-    int32_t ring_inner;      /* touches starting at least this far from centre (pad units, max 512) */
+    int32_t ring_pct;        /* touches starting at least this % of the pad's reach from centre */
+    int32_t reach_init;      /* assumed reach (pad units) until the pad has been touched at its edge */
     int32_t ring_start_deg;  /* sliding this far around the ring starts scrolling */
     int32_t units_per_turn;  /* wheel units per full circle (15 units = 1 notch) */
     bool circle_invert;      /* true: clockwise = scroll up */
@@ -105,7 +106,11 @@ struct tpg {
     /* glide */
     bool gliding;
     int32_t gvx, gvy, grx, gry, gticks;
+    /* how far from the centre the pad actually reports (learned), pad units */
+    int32_t reach;
     /* stats for debugging */
+    int32_t z_min, z_max, z_sum;  /* touch strength this touch */
+    int32_t rest_dev, rest_n;     /* jitter while resting: sum of |raw - filtered| */
     int32_t frames;
     int32_t min_x, max_x, min_y, max_y; /* raw (user view) extents seen since boot */
 };
@@ -194,6 +199,10 @@ static inline int32_t tpg_gain(const struct tpg_cfg *c, int32_t speed) {
     return 1000 + (int32_t)((c->accel_max - 1000) * t * t / 1000000);
 }
 
+static inline int32_t tpg_ring(const struct tpg *s, const struct tpg_cfg *c) {
+    return s->reach * c->ring_pct / 100;
+}
+
 /* ---- output ---- */
 
 static inline void tpg_cursor(struct tpg *s, const struct tpg_cfg *c, int32_t dxf, int32_t dyf,
@@ -226,6 +235,17 @@ static inline void tpg_init(struct tpg *s) {
     s->min_x = s->min_y = 1024;
 }
 
+/* touch strength of the frame that follows (for statistics only) */
+static inline void tpg_z(struct tpg *s, int32_t z) {
+    if (s->state == TPG_IDLE || s->frames == 0) {
+        s->z_min = s->z_max = z;
+        s->z_sum = 0;
+    }
+    if (z < s->z_min) s->z_min = z;
+    if (z > s->z_max) s->z_max = z;
+    s->z_sum += z;
+}
+
 /* one absolute frame while the finger is down */
 static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, int32_t y,
                              int64_t now, tpg_emit_fn emit, void *ctx) {
@@ -243,8 +263,13 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
 
     int32_t xf = x * TPG_FP, yf = y * TPG_FP;
 
+    if (s->reach == 0) {
+        s->reach = c->reach_init;
+    }
+
     if (s->state == TPG_IDLE) {
         s->gliding = false;
+        s->rest_dev = s->rest_n = 0;
         s->t0 = s->t_last = now;
         s->fx = s->sx = s->ax = xf;
         s->fy = s->sy = s->ay = yf;
@@ -259,8 +284,8 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
         s->frames = 1;
         tpg_polar(xf, yf, &s->start_r, &s->last_ang);
         s->ang_acc = 0;
-        s->state = (c->units_per_turn > 0 && s->start_r >= c->ring_inner) ? TPG_RING_PENDING
-                                                                           : TPG_MOVE_PENDING;
+        s->state = (c->units_per_turn > 0 && s->start_r >= tpg_ring(s, c)) ? TPG_RING_PENDING
+                                                                            : TPG_MOVE_PENDING;
         return;
     }
     int32_t te = (int32_t)(now - s->t_last);
@@ -301,6 +326,10 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
     tpg_polar(s->fx, s->fy, &r, &ang);
     int32_t dang = tpg_wrap_d10(ang - s->last_ang);
     s->last_ang = ang;
+    /* learn how far out the pad reports (filtered, so noise can't inflate it) */
+    if (s->frames > 3 && r > s->reach) {
+        s->reach = r > 512 ? 512 : r;
+    }
 
     switch (s->state) {
     case TPG_MOVE_PENDING:
@@ -311,6 +340,8 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
         /* rest lock: ignore jitter until the finger really moves */
         if (!s->moving) {
             if (tpg_dist(s->fx - s->ax, s->fy - s->ay) <= c->rest_threshold) {
+                s->rest_dev += tpg_dist(xf - s->fx, yf - s->fy);
+                s->rest_n++;
                 /* settle the anchor onto the true resting point */
                 s->ax += (s->fx - s->ax) / 32;
                 s->ay += (s->fy - s->ay) / 32;
@@ -339,9 +370,9 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
         int32_t arc = abs(s->ang_acc) * r / 573; /* angle(tenths) * r, 573 = 10*180/pi */
         /* until scrolling starts the finger must stay on the ring: a circle
          * keeps its distance from the centre, a straight drag dips inward */
-        int32_t ring_min = c->ring_inner - 20;
-        if (ring_min < s->start_r - 50) {
-            ring_min = s->start_r - 50; /* dipped well inward from where it started */
+        int32_t ring_min = tpg_ring(s, c) - 40;
+        if (ring_min < s->start_r - 70) {
+            ring_min = s->start_r - 70; /* dipped well inward from where it started */
         }
         if (abs(s->ang_acc) >= c->ring_start_deg * 10 && r >= ring_min) {
             s->state = TPG_RING;
@@ -365,7 +396,7 @@ static inline void tpg_frame(struct tpg *s, const struct tpg_cfg *c, int32_t x, 
 }
 
 static inline bool tpg_in_right_zone(const struct tpg *s, const struct tpg_cfg *c) {
-    if (c->right_click_clock <= 0 || s->start_r < c->right_click_inner) {
+    if (c->right_click_clock <= 0 || s->start_r < s->reach * c->right_click_pct / 100) {
         return false;
     }
     int32_t r, ang;

@@ -83,11 +83,14 @@ static void lift_work_cb(struct k_work *work) {
         static const char *const names[] = {"idle", "tap/move", "move", "ring?", "circle"};
         int32_t dur = (int32_t)(snap.t_last - snap.t0);
         /* one line per touch; read it with the zmk-usb-logging build */
-        LOG_INF("touch: %s start=(%d,%d) r=%d dur=%dms frames=%d (%dms/frame) max_disp=%d "
-                "glide=%d | pad seen x %d..%d y %d..%d",
-                names[snap.state], snap.sx / TPG_FP, snap.sy / TPG_FP, snap.start_r, dur,
-                snap.frames, snap.frames > 1 ? dur / (snap.frames - 1) : 0, snap.max_disp, glide,
-                snap.min_x, snap.max_x, snap.min_y, snap.max_y);
+        LOG_INF("touch: %s start=(%d,%d) r=%d reach=%d dur=%dms frames=%d (%dms/frame) "
+                "max_disp=%d z=%d..%d avg %d rest_jitter=%d.%d glide=%d | pad seen x %d..%d y %d..%d",
+                names[snap.state], snap.sx / TPG_FP, snap.sy / TPG_FP, snap.start_r, snap.reach,
+                dur, snap.frames, snap.frames > 1 ? dur / (snap.frames - 1) : 0, snap.max_disp,
+                snap.z_min, snap.z_max, snap.frames ? snap.z_sum / snap.frames : 0,
+                snap.rest_n ? snap.rest_dev / snap.rest_n : 0,
+                snap.rest_n ? (snap.rest_dev * 10 / snap.rest_n) % 10 : 0, glide, snap.min_x,
+                snap.max_x, snap.min_y, snap.max_y);
     }
     if (glide) {
         k_work_reschedule(&data->glide_work, K_MSEC(data->cfg->glide_tick_ms));
@@ -128,6 +131,12 @@ static int tp_gestures_handle_event(const struct device *dev, struct input_event
 
     /* absolute frame from the trackpad */
     data->src = event->dev;
+    if (event->code == INPUT_ABS_Z) {
+        k_mutex_lock(&data->lock, K_FOREVER);
+        tpg_z(&data->st, event->value);
+        k_mutex_unlock(&data->lock);
+        return ZMK_INPUT_PROC_STOP;
+    }
     if (event->code == INPUT_ABS_X) {
         data->pending_x = event->value;
         data->have_x = true;
@@ -182,8 +191,9 @@ static const struct zmk_input_processor_driver_api tp_gestures_api = {
                 .tap_travel = DT_INST_PROP(n, tap_travel),                                         \
                 .right_click_clock = DT_INST_PROP(n, right_click_clock),                           \
                 .right_click_width_deg = DT_INST_PROP(n, right_click_width_deg),                   \
-                .right_click_inner = DT_INST_PROP(n, right_click_inner),                           \
-                .ring_inner = DT_INST_PROP(n, circle_ring_inner),                                  \
+                .right_click_pct = DT_INST_PROP(n, right_click_reach_pct),                         \
+                .ring_pct = DT_INST_PROP(n, circle_reach_pct),                                     \
+                .reach_init = DT_INST_PROP(n, reach_init),                                         \
                 .ring_start_deg = DT_INST_PROP(n, circle_start_deg),                               \
                 .units_per_turn = DT_INST_PROP(n, circle_units_per_turn),                          \
                 .circle_invert = DT_INST_PROP(n, circle_invert),                                   \

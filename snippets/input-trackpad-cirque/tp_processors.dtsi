@@ -18,11 +18,11 @@
         cursor-scale = <60>;         /* % base speed */
 
         /* smoothing: 1-euro filter (heavy when slow, light when fast) */
-        filter-min-cutoff-mhz = <1000>; /* lower = smoother slow moves, more lag */
-        filter-beta = <10>;          /* higher = less lag on fast moves, more jitter */
-        filter-max-lag = <16>;       /* fast starts are never delayed more than this */
-        rest-threshold = <6>;        /* raise (8-12) if the cursor drifts while your finger rests */
-        rest-speed = <40>;
+        filter-min-cutoff-mhz = <600>; /* lower = smoother slow moves, more lag (was 1000) */
+        filter-beta = <8>;           /* higher = less lag on fast moves, more jitter (was 10) */
+        filter-max-lag = <32>;       /* fast starts are never delayed more than this (was 16) */
+        rest-threshold = <10>;       /* finger must move this far before the cursor follows (was 6) */
+        rest-speed = <60>;           /* below this speed the cursor locks still again (was 40) */
 
         /* acceleration (built in, uses the smoothed speed of both axes together) */
         accel-min = <650>;           /* 0.65x when moving slowly: precise */
@@ -34,14 +34,17 @@
         tap-travel = <24>;           /* max distance from touch-down for a tap */
         right-click-clock = <2>;     /* tap the edge at 2 o'clock = right click (0 = off) */
         right-click-width-deg = <45>;/* covers 1 to 3 o'clock */
-        right-click-inner = <340>;   /* right-click taps must be in the outer third */
+        right-click-reach-pct = <65>;/* right-click taps: outer 35% of the pad */
 
-        circle-ring-inner = <420>;   /* circle-scroll only from the outer edge (was 340: too easy) */
-        circle-start-deg = <25>;     /* slide this far around the edge before scrolling starts (was 15) */
+        /* circle scroll: the edge band adapts to how far your pad actually
+         * reports (learned from your touches), so it's always reachable */
+        circle-reach-pct = <75>;     /* start in the outer 25% of the pad */
+        circle-start-deg = <20>;     /* slide this far around the edge before scrolling starts */
+        reach-init = <420>;
         circle-units-per-turn = <180>; /* one full circle = 12 notches */
         /* circle-invert; */         /* clockwise = scroll up */
 
-        glide-decay = <900>;         /* higher = longer glide, 0 = off */
+        glide-decay = <0>;           /* inertia off. 850-950 = on (higher = longer) */
         glide-min-speed = <80>;      /* flick speed needed to glide */
         glide-max-ms = <1500>;
         lift-ms = <50>;

@@ -314,7 +314,10 @@ static void pinnacle_send_abs(const struct device *dev) {
 
     data->btn_cache = btn;
 
-    if (z > 0) {
+    /* FIX: a hovering finger or electrical noise gives a faint Z reading at a
+     * random position; only report touches at least absolute-mode-z-min strong */
+    if (z > 0 && z >= config->absolute_mode_z_min) {
+        input_report_abs(dev, INPUT_ABS_Z, z, false, K_FOREVER);
         if (x < config->absolute_mode_clamp_min_x) {
             x = config->absolute_mode_clamp_min_x;
         } else if (x > config->absolute_mode_clamp_max_x) {
@@ -826,6 +829,7 @@ static int pinnacle_pm_action(const struct device *dev, enum pm_device_action ac
         .absolute_mode_clamp_max_x = DT_INST_PROP(n, absolute_mode_clamp_max_x),                   \
         .absolute_mode_clamp_min_y = DT_INST_PROP(n, absolute_mode_clamp_min_y),                   \
         .absolute_mode_clamp_max_y = DT_INST_PROP(n, absolute_mode_clamp_max_y),                   \
+        .absolute_mode_z_min = DT_INST_PROP(n, absolute_mode_z_min),                               \
         .x_axis_z_min = DT_INST_PROP_OR(n, x_axis_z_min, 5),                                       \
         .y_axis_z_min = DT_INST_PROP_OR(n, y_axis_z_min, 4),                                       \
         .sensitivity = DT_INST_ENUM_IDX_OR(n, sensitivity, PINNACLE_SENSITIVITY_1X),               \

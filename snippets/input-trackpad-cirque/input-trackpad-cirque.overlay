@@ -56,5 +56,8 @@
          * (CONFIG_ZMK_INPUT_PINNACLE_IDLE_SLEEPER).
          */
         absolute-mode;
+        /* ignore faint touches (hover, noise) that made the cursor float.
+         * Z is touch strength 0..63; the debug log shows your real values. */
+        absolute-mode-z-min = <3>;
     };
 };

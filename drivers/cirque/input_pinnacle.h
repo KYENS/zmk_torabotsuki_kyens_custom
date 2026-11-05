@@ -112,6 +112,7 @@ struct pinnacle_config {
     enum pinnacle_sensitivity sensitivity;
     uint8_t x_axis_z_min, y_axis_z_min;
     uint16_t absolute_mode_scale_to_width, absolute_mode_scale_to_height, absolute_mode_clamp_min_x, absolute_mode_clamp_max_x, absolute_mode_clamp_min_y, absolute_mode_clamp_max_y;
+    uint8_t absolute_mode_z_min; /* weaker touches are ignored (hover / noise) */
     const struct gpio_dt_spec dr;
 };
 

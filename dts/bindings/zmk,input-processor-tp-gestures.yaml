@@ -21,15 +21,15 @@ properties:
     description: Cursor speed in percent (100 = 1 count per pad unit at 1.0x acceleration).
   rest-speed:
     type: int
-    default: 40
+    default: 60
     description: Finger speed (pad units/s) below which the cursor locks again (stops drifting).
   filter-min-cutoff-mhz:
     type: int
-    default: 1000
+    default: 600
     description: 1-euro filter cutoff when moving slowly (mHz). Lower = smoother but laggier slow moves.
   filter-beta:
     type: int
-    default: 10
+    default: 8
     description: How quickly smoothing relaxes as you move faster. Higher = less lag on fast moves, more jitter.
   filter-speed-cutoff-mhz:
     type: int
@@ -37,7 +37,7 @@ properties:
     description: Smoothing of the speed estimate used by the filter and acceleration (mHz).
   filter-max-lag:
     type: int
-    default: 16
+    default: 32
     description: The smoothed position never trails the finger by more than this (pad units), so fast starts aren't delayed.
   accel-min:
     type: int
@@ -57,7 +57,7 @@ properties:
     description: Finger speed (pad units/s) where the gain reaches accel-max.
   rest-threshold:
     type: int
-    default: 6
+    default: 10
     description: Pad units the finger must move before the cursor follows. Raise if the cursor drifts while your finger rests.
   tap-ms:
     type: int
@@ -75,17 +75,21 @@ properties:
     type: int
     default: 45
     description: Right-click zone covers clock position +/- this many degrees.
-  right-click-inner:
+  right-click-reach-pct:
     type: int
-    default: 340
-    description: A right-click tap must be at least this far from the centre (pad units, edge = 512).
-  circle-ring-inner:
+    default: 65
+    description: A right-click tap must be at least this % of the pad's reach from the centre.
+  circle-reach-pct:
+    type: int
+    default: 75
+    description: Circle scroll starts from touches at least this % of the pad's reach from the centre (the outer edge band).
+  reach-init:
     type: int
     default: 420
-    description: Touches starting at least this far from the centre (pad units, edge = 512) can circle-scroll.
+    description: Assumed distance (pad units) from the centre to the pad's edge until the pad learns it from your touches. The real value is learned automatically.
   circle-start-deg:
     type: int
-    default: 25
+    default: 20
     description: How far (degrees) the finger must slide around the edge before scrolling starts.
   circle-units-per-turn:
     type: int
@@ -96,7 +100,7 @@ properties:
     description: Clockwise scrolls up instead of down.
   glide-decay:
     type: int
-    default: 900
+    default: 0
     description: Per-mille of glide speed kept every tick. Higher = longer glide. 0 = no glide.
   glide-min-speed:
     type: int

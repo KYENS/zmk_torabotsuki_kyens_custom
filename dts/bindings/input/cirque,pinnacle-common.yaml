@@ -66,4 +66,10 @@ properties:
     description: |
       Specification says that active reporting of absolute position
       is: 128 ≤ X ≤1920 and 64 ≤ Y ≤ 1472, but on my touchpad, I need other values.
-
+  absolute-mode-z-min:
+    type: int
+    default: 1
+    description: |
+      Absolute mode: ignore touches with a Z (touch strength, 0..63) below
+      this. Filters out a hovering finger and noise that otherwise move the
+      cursor on their own.

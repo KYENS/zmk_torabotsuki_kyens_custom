@@ -16,10 +16,10 @@ To flash: turn the power switch off, then hold P (right half) or Q (left half) w
 | Do this | Get this |
 |---|---|
 | Slide one finger | Cursor moves, with smoothing and a trackpad acceleration curve |
-| Flick and lift | Cursor keeps gliding and slows down. Stopping before you lift gives no glide. |
+| Flick and lift | Cursor stops (inertia is off; set `glide-decay` to 850–950 to turn it on) |
 | Tap anywhere | Left click |
 | Tap the edge at about 2 o'clock (between 1 and 3) | Right click |
-| Start right at the outer edge and slide around it | Scroll. Clockwise scrolls down, counter-clockwise scrolls up. One full circle is about 12 notches. |
+| Start in the outer edge band (outer quarter of the pad) and slide around it | Scroll. Clockwise scrolls down, counter-clockwise scrolls up. One full circle is about 12 notches. The band adapts to how far your pad actually reports. |
 | Start on the edge, then move inward | Normal cursor movement |
 | Hold the scroll layer and slide | Scroll in the natural direction, like a laptop touchpad |
 
@@ -57,11 +57,12 @@ All settings are in `snippets/input-trackpad-cirque/tp_processors.dtsi`. Edit, p
 | Taps not registering | Raise `tap-ms` or `tap-travel` |
 | Accidental clicks | Lower `tap-ms` or `tap-travel` |
 | Right-click zone in the wrong place | `right-click-clock` (1–12) and `right-click-width-deg`. Set `right-click-clock` to 0 to turn the zone off. |
-| Right-click too hard or too easy to hit | `right-click-inner` (lower = bigger zone) |
+| Right-click too hard or too easy to hit | `right-click-reach-pct` (lower = bigger zone) |
 | Circle scroll too fast or too slow | `circle-units-per-turn` (15 = 1 notch) |
 | Circle scroll goes the wrong way | Uncomment `circle-invert;` |
-| Circle scroll never triggers | Lower `circle-ring-inner` (try 380). Check the `r=` values in the debug log for touches at the very edge. |
-| Circle scroll triggers by accident | Raise `circle-ring-inner` (closer to the edge; max 512) or `circle-start-deg` |
+| Circle scroll hard to start | Lower `circle-reach-pct` (try 65) or `circle-start-deg` (try 15) |
+| Circle scroll triggers by accident | Raise `circle-reach-pct` (try 82) or `circle-start-deg` |
+| Cursor floats on its own / moves before you touch | Raise `absolute-mode-z-min` in `input-trackpad-cirque.overlay`. The debug log's `z=` shows your real touch strength. |
 | Scroll-layer speed | `zip_scroll_scaler 1 4` in the listener snippet |
 | Trackpad stops responding | Flash a `_debug` build. `abs read failed` or `DR stuck` lines mean the driver hit a glitch and recovered. If they appear often, check the solder joints and the adapter's 4.7 kΩ pull-ups. |
 
@@ -85,6 +86,9 @@ What the fields mean:
 | `r` | Distance of the touch start from the pad centre. The edge is about 512. Circle scroll and right-click need at least `circle-ring-inner`. |
 | `ms/frame` | How often the pad reports. It should be about 10. |
 | `max_disp` | How far the finger moved from touch-down. A tap needs `tap-travel` or less. |
+| `reach` | How far from the centre your pad reports. This is learned automatically; the circle-scroll band is `circle-reach-pct` of it. |
+| `z` | Touch strength (min..max, average). Set `absolute-mode-z-min` comfortably below a light touch's minimum. |
+| `rest_jitter` | Average noise (pad units) while your finger rests. `rest-threshold` should be about 2–3× this. |
 | `pad seen` | The coordinate range seen since boot. Sweep around the edge once to see your pad's full reach. |
 
 ## Hardware
